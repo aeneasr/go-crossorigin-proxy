@@ -1,1 +1,1 @@
-web: go-crossorigin-proxy
+web: go-crossorigin-proxy serve
