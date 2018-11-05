@@ -116,6 +116,11 @@ to quickly create a Cobra application.`,
 					return res, err
 				}
 
+				res.Header.Del("Access-Control-Allow-Origin")
+				res.Header.Del("Access-Control-Allow-Methods")
+				res.Header.Del("Access-Control-Allow-Headers")
+				res.Header.Del("Access-Control-Max-Age")
+
 				var b bytes.Buffer
 				if err := gob.NewEncoder(&b).Encode(&cacheItem{
 					Status:           res.Status,
