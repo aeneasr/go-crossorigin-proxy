@@ -19,8 +19,8 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"time"
@@ -70,6 +70,7 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		log := logrus.New()
 		c := cache.New(5*time.Minute, 10*time.Minute)
 
 		h := &httputil.ReverseProxy{
@@ -85,11 +86,17 @@ to quickly create a Cobra application.`,
 				if _, ok := r.Header["User-Agent"]; !ok {
 					r.Header.Set("User-Agent", "")
 				}
+
+				r.Header.Del("If-Modified-Since")
+				r.Header.Del("If-None-Match")
+				r.Header.Del("Cache-Control")
 			},
 			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
 				if i, found := c.Get(id(r)); found {
 					var ci cacheItem
 					err := gob.NewDecoder(bytes.NewBuffer(i.([]byte))).Decode(&ci)
+					header := ci.Header
+					header.Set("X-Cache", "hit")
 					return &http.Response{
 						Status:           ci.Status,
 						Proto:            ci.Proto,
@@ -116,6 +123,10 @@ to quickly create a Cobra application.`,
 					return res, err
 				}
 
+				if err := res.Body.Close(); err != nil {
+					return res, err
+				}
+
 				res.Header.Del("Access-Control-Allow-Origin")
 				res.Header.Del("Access-Control-Allow-Methods")
 				res.Header.Del("Access-Control-Allow-Headers")
@@ -139,7 +150,11 @@ to quickly create a Cobra application.`,
 					return res, err
 				}
 
-				c.SetDefault(id(r), b.Bytes())
+				if len(body) > 0 {
+					c.SetDefault(id(r), b.Bytes())
+				}
+
+				res.Header.Set("X-Cache", "miss")
 				res.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 				return res, err
 			}),
@@ -160,7 +175,7 @@ to quickly create a Cobra application.`,
 			Handler: xo.Handler(h),
 		})
 
-		log.Println("main: Starting the server")
+		log.Printf("main: Starting the server at: %s", server.Addr)
 		if err := graceful.Graceful(server.ListenAndServe, server.Shutdown); err != nil {
 			log.Fatalln("main: Failed to gracefully shutdown")
 		}
