@@ -95,8 +95,7 @@ to quickly create a Cobra application.`,
 				if i, found := c.Get(id(r)); found {
 					var ci cacheItem
 					err := gob.NewDecoder(bytes.NewBuffer(i.([]byte))).Decode(&ci)
-					header := ci.Header
-					header.Set("X-Cache", "hit")
+					ci.Header.Set("X-Cache", "hit")
 					return &http.Response{
 						Status:           ci.Status,
 						Proto:            ci.Proto,
