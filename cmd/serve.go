@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"hash/crc64"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
@@ -44,7 +43,7 @@ func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func id(r *http.Request) string {
-	return string(crc64.Checksum([]byte(fmt.Sprintf("%s:%s", r.Method, r.URL.String())), crc64.MakeTable(crc64.ECMA)))
+	return fmt.Sprintf("%s:%s", r.Method, r.URL.String())
 }
 
 type cacheItem struct {
