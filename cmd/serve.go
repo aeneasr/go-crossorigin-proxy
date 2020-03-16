@@ -43,7 +43,7 @@ func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func id(r *http.Request) string {
-	return fmt.Sprintf("%s:%s", r.Method, r.URL.String())
+	return fmt.Sprintf("%s:%s:%s", r.Method, r.Host, r.URL.String())
 }
 
 type cacheItem struct {
