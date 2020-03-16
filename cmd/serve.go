@@ -16,14 +16,15 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/gob"
 	"fmt"
-	"github.com/sirupsen/logrus"
+	"hash/crc64"
 	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/ory/go-convenience/stringsx"
 	"github.com/ory/graceful"
@@ -40,8 +41,7 @@ func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func id(r *http.Request) string {
-	h := sha256.Sum256([]byte(fmt.Sprintf("%s:%s", r.Method, r.URL.String())))
-	return string(h[:])
+	return string(crc64.Checksum([]byte(fmt.Sprintf("%s:%s", r.Method, r.URL.String())), crc64.MakeTable(crc64.ECMA)))
 }
 
 type cacheItem struct {
@@ -61,17 +61,15 @@ type cacheItem struct {
 
 // serveCmd represents the serve command
 var serveCmd = &cobra.Command{
-	Use:   "serve",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Use: "serve",
 	Run: func(cmd *cobra.Command, args []string) {
 		log := logrus.New()
-		c := cache.New(5*time.Minute, 10*time.Minute)
+
+		d, err := cmd.Flags().GetDuration("cache-item-ttl")
+		if err != nil {
+			log.Fatalf("Unable to parse cache-item-ttl duration: %s", err)
+		}
+		c := cache.New(d, time.Minute*15)
 
 		h := &httputil.ReverseProxy{
 			Director: func(r *http.Request) {
@@ -115,7 +113,14 @@ to quickly create a Cobra application.`,
 				res, err := http.DefaultTransport.RoundTrip(r)
 				if err != nil {
 					return res, err
+				} else if res.StatusCode != 200 {
+					return res, err
 				}
+
+				res.Header.Del("Access-Control-Allow-Origin")
+				res.Header.Del("Access-Control-Allow-Methods")
+				res.Header.Del("Access-Control-Allow-Headers")
+				res.Header.Del("Access-Control-Max-Age")
 
 				body, err := ioutil.ReadAll(res.Body)
 				if err != nil {
@@ -125,11 +130,6 @@ to quickly create a Cobra application.`,
 				if err := res.Body.Close(); err != nil {
 					return res, err
 				}
-
-				res.Header.Del("Access-Control-Allow-Origin")
-				res.Header.Del("Access-Control-Allow-Methods")
-				res.Header.Del("Access-Control-Allow-Headers")
-				res.Header.Del("Access-Control-Max-Age")
 
 				var b bytes.Buffer
 				if err := gob.NewEncoder(&b).Encode(&cacheItem{
@@ -194,4 +194,5 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// serveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	serveCmd.Flags().Duration("cache-item-ttl", time.Hour*6, "Default Time To Live for cached items")
 }
