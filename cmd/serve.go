@@ -28,6 +28,7 @@ import (
 
 	"github.com/ory/go-convenience/stringsx"
 	"github.com/ory/graceful"
+	cache "github.com/patrickmn/go-cache"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

@@ -8,6 +8,7 @@ require (
 	github.com/mitchellh/go-homedir v1.0.0
 	github.com/ory/go-convenience v0.1.0
 	github.com/ory/graceful v0.1.0
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/pkg/errors v0.8.0 // indirect
 	github.com/rs/cors v1.6.0
 	github.com/sirupsen/logrus v1.3.0
