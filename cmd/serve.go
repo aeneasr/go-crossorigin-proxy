@@ -17,6 +17,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -80,17 +81,6 @@ var serveCmd = &cobra.Command{
 		h := &httputil.ReverseProxy{
 			Director: func(r *http.Request) {
 				rewriteHost := r.URL.Query().Get("__host")
-				var found bool
-				for _, h := range allowedHosts {
-					if rewriteHost == h {
-						found = true
-					}
-				}
-
-				if !found {
-					return
-				}
-
 				r.URL.Host = rewriteHost
 				r.URL.Scheme = stringsx.Coalesce(r.URL.Query().Get("__proto"), "https")
 				r.Host = r.URL.Host
@@ -108,6 +98,18 @@ var serveCmd = &cobra.Command{
 				r.Header.Del("Cache-Control")
 			},
 			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
+
+				var found bool
+				for _, h := range allowedHosts {
+					if r.Host == h {
+						found = true
+					}
+				}
+
+				if !found {
+					return nil, errors.New("host not allowed")
+				}
+
 				if i, found := c.Get(id(r)); found {
 					var ci cacheItem
 					err := gob.NewDecoder(bytes.NewBuffer(i.([]byte))).Decode(&ci)
