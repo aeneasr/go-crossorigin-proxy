@@ -28,7 +28,6 @@ import (
 
 	"github.com/ory/go-convenience/stringsx"
 	"github.com/ory/graceful"
-	"github.com/patrickmn/go-cache"
 	"github.com/rs/cors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -44,6 +43,10 @@ func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
 
 func id(r *http.Request) string {
 	return fmt.Sprintf("%s:%s:%s", r.Method, r.Host, r.URL.String())
+}
+
+var allowedHosts = []string{
+	"api.github.com", "hub.docker.com", "storage.googleapis.com",
 }
 
 type cacheItem struct {
@@ -75,7 +78,19 @@ var serveCmd = &cobra.Command{
 
 		h := &httputil.ReverseProxy{
 			Director: func(r *http.Request) {
-				r.URL.Host = r.URL.Query().Get("__host")
+				rewriteHost := r.URL.Query().Get("__host")
+				var found bool
+				for _, h := range allowedHosts {
+					if rewriteHost == h {
+						found = true
+					}
+				}
+
+				if !found {
+					return
+				}
+
+				r.URL.Host = rewriteHost
 				r.URL.Scheme = stringsx.Coalesce(r.URL.Query().Get("__proto"), "https")
 				r.Host = r.URL.Host
 				q := r.URL.Query()
@@ -90,9 +105,6 @@ var serveCmd = &cobra.Command{
 				r.Header.Del("If-Modified-Since")
 				r.Header.Del("If-None-Match")
 				r.Header.Del("Cache-Control")
-				if len(githubToken) > 0 {
-					r.Header.Set("Authorization", "token "+githubToken)
-				}
 			},
 			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
 				if i, found := c.Get(id(r)); found {
