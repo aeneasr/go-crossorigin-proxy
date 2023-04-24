@@ -19,10 +19,10 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httputil"
-	"os"
+	"path"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -35,8 +35,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-var githubToken = os.Getenv("GITHUB_TOKEN")
-
 type roundTripper func(r *http.Request) (*http.Response, error)
 
 func (f roundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -47,8 +45,20 @@ func id(r *http.Request) string {
 	return fmt.Sprintf("%s:%s:%s", r.Method, r.Host, r.URL.String())
 }
 
-var allowedHosts = []string{
-	"api.github.com", "hub.docker.com", "storage.googleapis.com",
+var allowedHostsPaths = map[string][]string{
+	"api.github.com": {
+		"/orgs/ory/repos",
+	},
+	"hub.docker.com": {
+		"/v2/repositories/oryam/",
+		"/v2/repositories/oryd/",
+	},
+	"storage.googleapis.com": {
+		"/metrics-dashboard/metrics-results/hydra/hits-per-month.csv",
+		"/metrics-dashboard/metrics-results/oathkeeper/hits-per-month.csv",
+		"/metrics-dashboard/metrics-results/kratos/hits-per-month.csv",
+		"/metrics-dashboard/metrics-results/keto/hits-per-month.csv",
+	},
 }
 
 type cacheItem struct {
@@ -98,16 +108,19 @@ var serveCmd = &cobra.Command{
 				r.Header.Del("Cache-Control")
 			},
 			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
-
 				var found bool
-				for _, h := range allowedHosts {
-					if r.Host == h {
-						found = true
+				for host, paths := range allowedHostsPaths {
+					if r.Host == host {
+						for _, p := range paths {
+							if path.Clean(r.URL.Path) == p {
+								found = true
+							}
+						}
 					}
 				}
 
 				if !found {
-					return nil, errors.New("host not allowed")
+					return nil, errors.New("host/path not allowed")
 				}
 
 				if i, found := c.Get(id(r)); found {
@@ -126,7 +139,7 @@ var serveCmd = &cobra.Command{
 						Trailer:          ci.Trailer,
 						Uncompressed:     ci.Uncompressed,
 						StatusCode:       ci.StatusCode,
-						Body:             ioutil.NopCloser(bytes.NewBuffer(ci.Body)),
+						Body:             io.NopCloser(bytes.NewBuffer(ci.Body)),
 					}, err
 				}
 
@@ -142,7 +155,7 @@ var serveCmd = &cobra.Command{
 				res.Header.Del("Access-Control-Allow-Headers")
 				res.Header.Del("Access-Control-Max-Age")
 
-				body, err := ioutil.ReadAll(res.Body)
+				body, err := io.ReadAll(res.Body)
 				if err != nil {
 					return res, err
 				}
@@ -174,7 +187,7 @@ var serveCmd = &cobra.Command{
 				}
 
 				res.Header.Set("X-Cache", "miss")
-				res.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+				res.Body = io.NopCloser(bytes.NewBuffer(body))
 				return res, err
 			}),
 		}
