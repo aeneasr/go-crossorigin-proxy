@@ -122,6 +122,7 @@ var serveCmd = &cobra.Command{
 				}
 
 				if !found {
+					log.Errorf("Host/Path not allowed: %s - %s", r.Host, r.URL.String())
 					return nil, errors.New("host/path not allowed")
 				}
 
