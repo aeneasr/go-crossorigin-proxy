@@ -51,7 +51,9 @@ var allowedHostsPaths = map[string][]string{
 	},
 	"hub.docker.com": {
 		"/v2/repositories/oryam/",
+		"/v2/repositories/oryam",
 		"/v2/repositories/oryd/",
+		"/v2/repositories/oryd",
 	},
 	"storage.googleapis.com": {
 		"/metrics-dashboard/metrics-results/hydra/hits-per-month.csv",
